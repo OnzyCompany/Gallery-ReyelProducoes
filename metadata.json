@@ -1,0 +1,5 @@
+{
+  "name": "Gemini-Powered Image Gallery",
+  "description": "An intelligent image gallery that uses Gemini to analyze and describe photos. Browse through categorized collections with stunning animations and get deep insights into any image.",
+  "requestFramePermissions": []
+}
