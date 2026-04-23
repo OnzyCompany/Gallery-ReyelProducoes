@@ -1,5 +1,6 @@
 {
-  "name": "Gemini-Powered Image Gallery",
+  "name": "Galeria Reyel Produções",
   "description": "An intelligent image gallery that uses Gemini to analyze and describe photos. Browse through categorized collections with stunning animations and get deep insights into any image.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": []
 }
