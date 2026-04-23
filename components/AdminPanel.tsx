@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Save, ArrowLeft, Loader2, Image as ImageIcon, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Save, ArrowLeft, Loader2, Image as ImageIcon, ExternalLink, Lock, LogOut, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { categories as initialCategories } from '../constants';
 import type { Category, Image } from '../types';
@@ -14,6 +14,13 @@ interface DBImage {
 }
 
 export default function AdminPanel({ onBack }: { onBack: () => void }) {
+  const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -24,14 +31,47 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
   const [newImageTitle, setNewImageTitle] = useState('');
 
   useEffect(() => {
-    fetchData();
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChanged((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setLoginLoading(true);
+    setLoginError('');
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } catch (err: any) {
+      setLoginError(err.message || 'Erro ao entrar. Verifique suas credenciais.');
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+  }
 
   async function fetchData() {
     setLoading(true);
     try {
-      // For now, we use constants for categories/subcategories structure
-      // But we fetch images from Supabase
       const { data, error } = await supabase
         .from('reyel_images')
         .select('*')
@@ -39,15 +79,12 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
 
       if (error) throw error;
 
-      // Map dynamic images back to the static category structure if we were doing a full sync
-      // But for the admin panel, we'll just manage the images directly for the selected category
       setCategories(initialCategories);
       if (initialCategories.length > 0) {
         setSelectedCategoryId(initialCategories[0].id);
       }
     } catch (err) {
       console.error('Error fetching data:', err);
-      // Fallback to initial categories for structure if DB fails
       setCategories(initialCategories);
     } finally {
       setLoading(false);
@@ -58,10 +95,10 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
   const subCategories = activeCategory?.subCategories || [];
 
   useEffect(() => {
-    if (selectedCategoryId) {
+    if (user && selectedCategoryId) {
       fetchImages();
     }
-  }, [selectedCategoryId, selectedSubCategoryId]);
+  }, [selectedCategoryId, selectedSubCategoryId, user]);
 
   async function fetchImages() {
     setLoading(true);
@@ -102,7 +139,7 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
       setNewImageTitle('');
     } catch (err) {
       console.error('Error adding image:', err);
-      alert('Erro ao adicionar imagem. Verifique se as tabelas foram criadas no Supabase.');
+      alert('Erro ao adicionar imagem. Verifique as permissões de segurança (RLS) no Supabase.');
     } finally {
       setSaving(false);
     }
@@ -119,10 +156,90 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
     }
   }
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md bg-gray-800 rounded-2xl p-8 border border-gray-700 shadow-2xl"
+        >
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mb-4">
+              <Lock className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-white text-center">Acesso Restrito</h1>
+            <p className="text-gray-400 text-sm text-center">Faça login com suas credenciais do Supabase</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">E-mail</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <input 
+                  type="email" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full bg-gray-700 border border-gray-600 rounded-xl pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                  placeholder="seu@email.com"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Senha</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <input 
+                  type="password" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full bg-gray-700 border border-gray-600 rounded-xl pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+
+            {loginError && (
+              <p className="text-red-500 text-sm bg-red-500/10 p-3 rounded-lg border border-red-500/20">
+                {loginError}
+              </p>
+            )}
+
+            <button 
+              type="submit" 
+              disabled={loginLoading}
+              className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-600/20"
+            >
+              {loginLoading ? <Loader2 className="animate-spin w-5 h-5" /> : 'Entrar'}
+            </button>
+          </form>
+
+          <button 
+            onClick={onBack}
+            className="w-full mt-4 text-gray-500 hover:text-white text-sm py-2 transition-colors"
+          >
+            Voltar para a Galeria
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
-        <header className="flex justify-between items-center mb-8">
+        <header className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
           <div className="flex items-center gap-4">
             <button 
               onClick={onBack}
@@ -130,11 +247,18 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
             >
               <ArrowLeft />
             </button>
-            <h1 className="text-2xl font-bold">Painel Administrativo</h1>
+            <div>
+              <h1 className="text-2xl font-bold">Painel Administrativo</h1>
+              <p className="text-xs text-gray-500">Logado como: {user.email}</p>
+            </div>
           </div>
-          <div className="text-sm text-gray-400">
-            Reyel Produções
-          </div>
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-red-900/40 text-gray-300 hover:text-red-400 rounded-lg transition-all border border-gray-700"
+          >
+            <LogOut className="w-4 h-4" />
+            Sair
+          </button>
         </header>
 
         <section className="bg-gray-800 rounded-xl p-6 mb-8 border border-gray-700">
@@ -278,7 +402,6 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
             </div>
           )}
         </section>
-
       </div>
     </div>
   );
