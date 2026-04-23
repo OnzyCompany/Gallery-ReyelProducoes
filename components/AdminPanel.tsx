@@ -31,6 +31,12 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
   const [newImageTitle, setNewImageTitle] = useState('');
 
   useEffect(() => {
+    if (!supabase?.auth) {
+      console.error('Supabase auth not available');
+      setAuthLoading(false);
+      return;
+    }
+
     // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
