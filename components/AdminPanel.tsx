@@ -279,22 +279,6 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
           )}
         </section>
 
-        <div className="mt-12 bg-red-900/20 border border-red-900/50 p-6 rounded-xl">
-           <h3 className="text-red-400 font-bold mb-2 uppercase text-xs tracking-widest">Configuração do Banco</h3>
-           <p className="text-sm text-gray-400 mb-4">
-             Certifique-se de executar este SQL no Editor SQL do seu Supabase para que o painel funcione:
-           </p>
-           <pre className="bg-black/50 p-4 rounded text-[10px] md:text-sm overflow-x-auto text-gray-300 font-mono">
-{`CREATE TABLE IF NOT EXISTS reyel_images (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  url TEXT NOT NULL,
-  title TEXT NOT NULL,
-  category_id TEXT,
-  subcategory_id TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);`}
-           </pre>
-        </div>
       </div>
     </div>
   );
