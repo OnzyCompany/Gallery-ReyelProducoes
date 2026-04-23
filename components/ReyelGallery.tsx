@@ -1,10 +1,12 @@
 // Fix: Switched from a namespace import (`* as React`) to fix JSX type augmentation issues.
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ArrowLeft, Settings } from 'lucide-react';
 import { categories } from '../constants';
 import type { Image, Category } from '../types';
+import { supabase } from '../lib/supabase';
 
+// ... (NeonBeam and ImageCard remain largely the same, but I'll ensure they are efficient)
 
 const NeonBeam: React.FC<{ delay?: number }> = ({ delay = 0 }) => {
   return (
@@ -24,12 +26,12 @@ const NeonBeam: React.FC<{ delay?: number }> = ({ delay = 0 }) => {
   );
 };
 
-
 interface ImageCardProps {
   image: Image;
   onClick: () => void;
   index: number;
 }
+
 const ImageCard: React.FC<ImageCardProps> = ({ image, onClick, index }) => {
   return (
     <motion.div
@@ -63,7 +65,6 @@ const ImageCard: React.FC<ImageCardProps> = ({ image, onClick, index }) => {
     </motion.div>
   );
 };
-
 
 interface FullscreenModalProps {
   image: Image;
@@ -132,30 +133,62 @@ const FullscreenModal: React.FC<FullscreenModalProps> = ({ image, onClose, onPre
   );
 };
 
-
 export default function ReyelGallery() {
-  const [activeMainCategoryId, setActiveMainCategoryId] = React.useState<string>(categories[0].id);
-  const [activeSubCategoryId, setActiveSubCategoryId] = React.useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = React.useState<Image | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = React.useState<number>(0);
+  const [activeMainCategoryId, setActiveMainCategoryId] = useState<string>(categories[0].id);
+  const [activeSubCategoryId, setActiveSubCategoryId] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<Image | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
+  const [dbImages, setDbImages] = useState<Image[]>([]);
+
+  useEffect(() => {
+    async function fetchImages() {
+      try {
+        const { data, error } = await supabase.from('reyel_images').select('*');
+        if (error) throw error;
+        if (data) {
+          setDbImages(data.map(item => ({
+            id: item.id,
+            url: item.url,
+            title: item.title,
+            category_id: item.category_id,
+            subcategory_id: item.subcategory_id
+          } as any)));
+        }
+      } catch (err) {
+        console.error('Failed to fetch images from Supabase:', err);
+      }
+    }
+    fetchImages();
+  }, []);
 
   const handleMainCategoryClick = (categoryId: string) => {
     setActiveMainCategoryId(categoryId);
-    setActiveSubCategoryId(null); // Reset sub-category selection
+    setActiveSubCategoryId(null);
   };
   
-  const activeMainCategory = React.useMemo(() => categories.find(cat => cat.id === activeMainCategoryId), [activeMainCategoryId]);
+  const activeMainCategory = useMemo(() => categories.find(cat => cat.id === activeMainCategoryId), [activeMainCategoryId]);
   const subCategories = activeMainCategory?.subCategories || [];
 
-  const currentImages = React.useMemo(() => {
+  const currentImages = useMemo(() => {
+    // Basic filter for DB images
+    const filteredDbImages = dbImages.filter(img => {
+      const dbImg = img as any;
+      if (activeSubCategoryId) {
+        return dbImg.subcategory_id === activeSubCategoryId;
+      }
+      return dbImg.category_id === activeMainCategoryId;
+    });
+
+    // Fallback to static images IF no DB images exist for this specific filter
+    if (filteredDbImages.length > 0) return filteredDbImages;
+
     if (subCategories.length > 0) {
       if (!activeSubCategoryId) return [];
       const activeSubCategory = subCategories.find(sub => sub.id === activeSubCategoryId);
       return activeSubCategory?.images || [];
     }
     return activeMainCategory?.images || [];
-  }, [activeMainCategory, activeSubCategoryId, subCategories]);
-
+  }, [activeMainCategory, activeSubCategoryId, subCategories, dbImages, activeMainCategoryId]);
 
   const openImage = (image: Image, index: number) => {
     setSelectedImage(image);
