@@ -134,7 +134,9 @@ export default function AdminPanel({ onBack }: { onBack: () => void }) {
 
       if (error) throw error;
       
-      setImages([data[0], ...images]);
+      if (data && data.length > 0) {
+        setImages([data[0], ...images]);
+      }
       setNewImageUrl('');
       setNewImageTitle('');
     } catch (err) {
